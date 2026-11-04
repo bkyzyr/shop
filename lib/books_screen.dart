@@ -1,43 +1,84 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'cart_badge.dart';
-import 'main.dart';
+import 'models/book.dart';
+import 'models/cart.dart';
 
-class BooksScreen extends StatelessWidget {
-  const BooksScreen({
-    super.key,
-    required this.cart,
-    required this.total,
-    required this.onAdd,
-  });
+class BooksScreen extends StatefulWidget {
+  const BooksScreen({super.key});
 
-  final List<Book> cart;
-  final int total;
-  final void Function(Book) onAdd;
+  @override
+  State<BooksScreen> createState() => _BooksScreenState();
+}
+
+class _BooksScreenState extends State<BooksScreen> {
+  String _query = '';
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('BooksScreen build');
+    final query = _query.trim().toLowerCase();
+    final visible = [
+      for (final b in books)
+        if (query.isEmpty ||
+            b.title.toLowerCase().contains(query) ||
+            b.author.toLowerCase().contains(query))
+          b,
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Books'),
-        actions: [CartBadge(count: cart.length, total: total)],
+        actions: const [CartBadge()],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(64),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              onChanged: (value) => setState(() => _query = value),
+              decoration: const InputDecoration(
+                hintText: 'Search books',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                filled: true,
+              ),
+            ),
+          ),
+        ),
       ),
-      body: ListView(
-        children: books.map((b) {
-          debugPrint('row ${b.title}');
-          return ListTile(
-            title: Text(b.title),
-            subtitle: Text(b.author),
-            trailing: cart.contains(b)
-                ? const Text('Added')
-                : OutlinedButton(
-                    onPressed: () => onAdd(b),
-                    child: const Text('Add'),
-                  ),
-          );
-        }).toList(),
-      ),
+      body: visible.isEmpty
+          ? const Center(child: Text('No books found'))
+          : ListView.builder(
+              itemCount: visible.length,
+              itemBuilder: (context, index) => _BookRow(book: visible[index]),
+            ),
+    );
+  }
+}
+
+class _BookRow extends StatelessWidget {
+  const _BookRow({required this.book});
+
+  final Book book;
+
+  @override
+  Widget build(BuildContext context) {
+    final added = context.select<Cart, bool>((c) => c.qtyOf(book) > 0);
+    return ListTile(
+      title: Text(book.title),
+      subtitle: Text(book.author),
+      trailing: added
+          ? const Text('Added')
+          : OutlinedButton(
+              onPressed: () {
+                final ok = context.read<Cart>().add(book);
+                if (ok) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(const SnackBar(content: Text('Added')));
+                }
+              },
+              child: const Text('Add'),
+            ),
     );
   }
 }
